@@ -13,7 +13,20 @@ import java.util.List;
  * network given some expression data.
  */
 public class Siren {
-	public static double[] computeScores(double[][] expressionMatrix, double[][] networkMatrix, double[][] weightMatrix) {
+	public static final double[][] DEFAULT_WEIGHT_MATRIX = reshape(10, new double[] {
+		 1,  1,  1,  0, -1, -1, -1, -1, -1, -1,
+		 1,  1,  1,  1,  0, -1, -1, -1, -1, -1,
+		 1,  1,  1,  1,  1,  0, -1, -1, -1, -1,
+		 0,  1,  1,  1,  1,  0,  0, -1, -1, -1,
+		-1,  0,  1,  1,  1,  1,  1,  0, -1, -1,
+		-1, -1,  0,  0,  1,  1,  1,  1,  0, -1,
+		-1, -1, -1,  0,  1,  1,  1,  1,  1,  0,
+		-1, -1, -1, -1,  0,  1,  1,  1,  1,  1,
+		-1, -1, -1, -1, -1,  0,  1,  1,  1,  1,
+		-1, -1, -1, -1, -1, -1,  0,  1,  1,  1,
+	});
+	
+	public static double[] computeScores(double[][] expressionMatrix, int[][] networkMatrix, double[][] weightMatrix) {
 		int degreesOfFreedom = 10;
 		int degree = 2;
 		
@@ -231,7 +244,7 @@ public class Siren {
 		return result;
 	}
 	
-	public static double[][] loadMatrix(String path) throws IOException {
+	static int[] getMatrixDimensions(String path) throws IOException {
 		BufferedReader reader = new BufferedReader(new FileReader(path));
 		int rows = 0;
 		int columns = 0;
@@ -251,8 +264,15 @@ public class Siren {
 		} finally {
 			reader.close();
 		}
-
-		reader = new BufferedReader(new FileReader(path));
+		return new int[] { rows, columns };
+	}
+	
+	public static double[][] loadMatrix(String path) throws IOException {
+		int[] dimensions = getMatrixDimensions(path);
+		int rows = dimensions[0];
+		int columns = dimensions[1];
+		
+		BufferedReader reader = new BufferedReader(new FileReader(path));
 		double[][] result = new double[rows][columns];
 		try {
 			int rowIndex = 0;
@@ -275,6 +295,37 @@ public class Siren {
 		return result;
 	}
 	
+	public static int[][] loadNetworkMatrix(String path) throws IOException {
+		int[] dimensions = getMatrixDimensions(path);
+		int rows = dimensions[0];
+		int columns = dimensions[1];
+		
+		BufferedReader reader = new BufferedReader(new FileReader(path));
+		int[][] result = new int[rows][columns];
+		try {
+			int rowIndex = 0;
+			String line = reader.readLine();
+			while (line != null) {
+				try {
+					int columnIndex = 0;
+					for (String value : line.split("\t")) {
+						// The R implementation of SIREN used networks
+					    // with 1-based indexes.  Since Java uses 0-based
+					    // indexes, we need to adjust them.
+						result[rowIndex][columnIndex] = Integer.parseInt(value) - 1;
+						columnIndex++;
+					}
+					rowIndex++;
+				} finally {
+					line = reader.readLine();
+				}
+			}
+		} finally {
+			reader.close();
+		}
+		return result;
+	}
+
 	static void printVector(double[] vector) {
 		for (int i = 0; i < vector.length; i++) {
 			System.out.printf("%f\n", vector[i]);
@@ -302,7 +353,7 @@ public class Siren {
 		}
 	}
 	
-	static double[] computeScores(double[][][] bMatrix, double[][] weightMatrix, double[][] paMatrix, double[][] networkMatrix) {
+	static double[] computeScores(double[][][] bMatrix, double[][] weightMatrix, double[][] paMatrix, int[][] networkMatrix) {
 		int totalBins = bMatrix[0].length;
 		int totalInteractions = networkMatrix.length;
 		
@@ -346,28 +397,29 @@ public class Siren {
 			reader.close();
 		}
 	}
+
+	static double[][] reshape(int columns, double[] data) {
+		int rows = data.length / columns;
+		double[][] result = new double[rows][columns];
+		int i = 0;
+		for (int r = 0; r < rows; r++) {
+			for (int c = 0; c < columns; c++) {
+				result[r][c] = data[i++];
+			}
+		}
+		return result;
+	}
 	
 	public static void main(String[] args) throws IOException {
 		double[][] weightMatrix = loadMatrix("Weighting_Matrix.txt");
 		double[][] expressionMatrix = loadMatrix("Expression_Format.txt");
-		double[][] networkMatrix = loadMatrix("Network_Format.txt");
-		adjustIndexes(networkMatrix);
+		int[][] networkMatrix = loadNetworkMatrix("Network_Format.txt");
 
 		double[] scores = computeScores(expressionMatrix, networkMatrix, weightMatrix);
 		List<Double> results = parseResults("Result.txt");
 		for (int i = 0; i < scores.length; i++) {
 			if (Math.abs(scores[i] - results.get(i)) > 0.0000001) {
 				System.out.printf("%d\t%g\n", i, scores[i] - results.get(i));
-			}
-		}
-	}
-
-	static void adjustIndexes(double[][] networkMatrix) {
-		// The R implementation of SIREN used networks with 1-based indexes.
-		// Since Java uses 0-based indexes, we need to adjust them.
-		for (int i = 0; i < networkMatrix[0].length; i++) {
-			for (int j = 0; j < networkMatrix.length; j++) {
-				networkMatrix[j][i]--;
 			}
 		}
 	}
