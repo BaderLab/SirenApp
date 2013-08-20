@@ -37,17 +37,11 @@ public class Siren {
 	
 	static double[][][] computeBMatrix(double[][] expressionMatrix, int degreesOfFreedom, int degree) {
 		// Assume expressionMatrix is rectangular and has at least 1 row
-		int totalConditions = expressionMatrix[0].length;
 		int totalGenes = expressionMatrix.length;
 		
-		double[][][] result = new double[totalGenes][degreesOfFreedom][totalConditions];
+		double[][][] result = new double[totalGenes][][];
 		for (int g = 0; g < totalGenes; g++) {
-			double[][] basis = computeBSplineBasis(scaleAndCentre(expressionMatrix[g]), degreesOfFreedom, degree);
-			for (int c = 0; c < totalConditions; c++) {
-				for (int i = 0; i < basis.length; i++) {
-					result[g][i][c] = basis[i][c];
-				}
-			}
+			result[g] = computeBSplineBasis(scaleAndCentre(expressionMatrix[g]), degreesOfFreedom, degree);
 		}
 		return result;
 	}
@@ -69,20 +63,19 @@ public class Siren {
 		return result;
 	}
 	
-	static double[][] computePabMatrix(double[][] bMatrixA, double[][] bMatrixB) {
+	static void computePabMatrix(double[][] bMatrixA, double[][] bMatrixB, double[][] result) {
 		int totalBins = bMatrixA.length;
 		int totalConditions = bMatrixA[0].length;
 		
-		double[][] result = new double[totalBins][totalBins];
 		for (int i = 0; i < totalBins; i++) {
 			for (int j = 0; j < totalBins; j++) {
+				result[i][j] = 0;
 				for (int c = 0; c < totalConditions; c++) {
 					result[i][j] += bMatrixA[i][c] * bMatrixB[j][c];
 				}
 				result[i][j] /= totalConditions;
 			}
 		}
-		return result;
 	}
 
 	static double[] scaleAndCentre(double[] vector) {
@@ -281,8 +274,8 @@ public class Siren {
 				try {
 					int columnIndex = 0;
 					for (String value : line.split("\t")) {
-							result[rowIndex][columnIndex] = Double.parseDouble(value);
-							columnIndex++;
+						result[rowIndex][columnIndex] = Double.parseDouble(value);
+						columnIndex++;
 					}
 					rowIndex++;
 				} finally {
@@ -310,8 +303,8 @@ public class Siren {
 					int columnIndex = 0;
 					for (String value : line.split("\t")) {
 						// The R implementation of SIREN used networks
-					    // with 1-based indexes.  Since Java uses 0-based
-					    // indexes, we need to adjust them.
+						// with 1-based indexes.  Since Java uses 0-based
+						// indexes, we need to adjust them.
 						result[rowIndex][columnIndex] = Integer.parseInt(value) - 1;
 						columnIndex++;
 					}
@@ -358,13 +351,14 @@ public class Siren {
 		int totalInteractions = networkMatrix.length;
 		
 		double[] result = new double[totalInteractions];
+		double[][] pABMatrix = new double[totalBins][totalBins];
 		for (int i = 0; i < totalInteractions; i++) {
 			int geneA = (int) networkMatrix[i][0];
 			int geneB = (int) networkMatrix[i][1];
 			
 			double[] pA = paMatrix[geneA];
 			double[] pB = paMatrix[geneB];
-			double[][] pABMatrix = computePabMatrix(bMatrix[geneA], bMatrix[geneB]);
+			computePabMatrix(bMatrix[geneA], bMatrix[geneB], pABMatrix);
 			for (int x = 0; x < totalBins; x++) {
 				for (int y = 0; y < totalBins; y++) {
 					double xN = Math.log(pABMatrix[x][y] / pA[x] / pB[y]);
@@ -410,6 +404,15 @@ public class Siren {
 		return result;
 	}
 	
+	static void clearMatrix(double[][] matrix, double defaultValue) {
+		for (int i = 0; i < matrix.length; i++) {
+			double[] row = matrix[i];
+			for (int j = 0; j < row.length; j++) {
+				row[j] = defaultValue;
+			}
+		}
+	}
+
 	public static void main(String[] args) throws IOException {
 		double[][] weightMatrix = loadMatrix("Weighting_Matrix.txt");
 		double[][] expressionMatrix = loadMatrix("Expression_Format.txt");
