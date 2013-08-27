@@ -189,7 +189,13 @@ public class SirenTask extends AbstractTask {
 			while (line != null) {
 				try {
 					String[] values = line.split("\t");
-					int rowIndex = nodeIndexes.get(values[0]);
+					if (values.length < 2) {
+						continue;
+					}
+					Integer rowIndex = nodeIndexes.get(values[0]);
+					if (rowIndex == null) {
+						continue;
+					}
 					for (int i = 1; i < values.length; i++) {
 						result[rowIndex][i - 1] = Double.parseDouble(values[i]);
 					}
